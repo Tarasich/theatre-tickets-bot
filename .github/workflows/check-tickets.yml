@@ -1,0 +1,52 @@
+name: Проверка билетов
+
+on:
+  schedule:
+    # Каждые 5 минут (минимум для GitHub). Время UTC; запуски могут опаздывать.
+    - cron: "*/5 * * * *"
+  workflow_dispatch: # кнопка «Run workflow» для ручного запуска
+
+# Не запускаем две проверки одновременно, чтобы они не перезаписывали состояние друг друга
+concurrency:
+  group: check-tickets
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # state.json хранится в кэше Actions между запусками: каждый запуск
+      # восстанавливает самую свежую копию и сохраняет новую под своим ключом
+      - name: Восстановить состояние
+        uses: actions/cache/restore@v4
+        with:
+          path: state.json
+          key: bot-state-${{ github.run_id }}
+          restore-keys: bot-state-
+
+      - name: Проверить сайт и ответить на команды
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WATCH_TITLES: ${{ vars.WATCH_TITLES }}
+          DATE_FROM: ${{ vars.DATE_FROM }}
+          DATE_TO: ${{ vars.DATE_TO }}
+          FIRST_RUN_SUMMARY: ${{ vars.FIRST_RUN_SUMMARY }}
+        run: python -m theatre_bot --once
+
+      - name: Сохранить состояние
+        if: always() && hashFiles('state.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: state.json
+          key: bot-state-${{ github.run_id }}

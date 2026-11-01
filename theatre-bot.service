@@ -1,0 +1,15 @@
+[Unit]
+Description=Theatre tickets monitor bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=theatrebot
+WorkingDirectory=/opt/theatre-bot
+ExecStart=/opt/theatre-bot/.venv/bin/python -m theatre_bot
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
