@@ -60,15 +60,18 @@ docker run -d --name theatre-bot --restart unless-stopped --env-file .env -v the
 
 ## 6. Запуск в GitHub Actions (без своего сервера и ПК)
 
-Workflow [.github/workflows/check-tickets.yml](.github/workflows/check-tickets.yml) раз в 5 минут
-запускает `python -m theatre_bot --once`. Каждый запуск проверяет сайт, рассылает уведомления
+Workflow [.github/workflows/check-tickets.yml](.github/workflows/check-tickets.yml) запускает
+`python -m theatre_bot --once`. Каждый запуск проверяет сайт, рассылает уведомления
 и отвечает на команды, пришедшие с прошлого запуска. Состояние (`state.json`) хранится
 в кэше Actions между запусками.
 
-Чем этот вариант отличается от постоянно работающего бота:
-- GitHub не гарантирует точное время: запуски по расписанию часто опаздывают на 5–30 минут,
-  иногда пропускаются.
-- Команды работают, но ответ приходит только при следующем запуске — через 5–30 минут.
+Запускает workflow внешний сервис [cron-job.org](https://cron-job.org) раз в 5 минут через
+API GitHub. Встроенное расписание GitHub (`schedule`) не используется: для небольших
+репозиториев оно срабатывает раз в несколько часов, а через 60 дней без коммитов
+GitHub отключает такой workflow целиком.
+
+Команды в Telegram работают, но ответ приходит только при следующем запуске — в пределах
+5 минут.
 
 **Настройка**
 
@@ -77,7 +80,7 @@ Workflow [.github/workflows/check-tickets.yml](.github/workflows/check-tickets.y
    хранятся в секретах и не видны никому, а `.env` и `state.json` в репозиторий не попадают
    (они в `.gitignore`).
    В приватном репозитории бесплатно 2000 минут в месяц, а каждый запуск считается минимум
-   за минуту — тогда поменяйте в workflow расписание на `*/25 * * * *`.
+   за минуту — тогда запускайте проверку в cron-job.org не чаще раза в 25 минут.
 2. Загрузите в репозиторий файлы проекта (всё, кроме `.env`, `.venv`, `state.json`, `bot.log`).
 3. В репозитории: **Settings → Secrets and variables → Actions → New repository secret**,
    создайте два секрета: `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID`.
@@ -85,15 +88,23 @@ Workflow [.github/workflows/check-tickets.yml](.github/workflows/check-tickets.y
    `DATE_TO`, `FIRST_RUN_SUMMARY`.
 5. **Остановите бота на ПК** (и удалите задачу из планировщика, если создавали):
    с одним токеном Telegram отдаёт команды только одной копии.
-6. Вкладка **Actions** → «Проверка билетов» → **Run workflow**, чтобы запустить первую проверку
-   сразу. Дальше запуски пойдут по расписанию.
+6. Вкладка **Actions** → «Проверка билетов» → **Run workflow**, чтобы проверить, что всё работает.
+7. Создайте токен GitHub для запуска: https://github.com/settings/personal-access-tokens/new →
+   Repository access: **Only select repositories** → этот репозиторий;
+   Permissions: **Actions: Read and write** (Metadata: Read-only добавится сам).
+8. На [cron-job.org](https://cron-job.org) создайте задание:
+   - URL: `https://api.github.com/repos/<логин>/<репозиторий>/actions/workflows/check-tickets.yml/dispatches`
+   - расписание: каждые 5 минут;
+   - Advanced → метод `POST`, заголовки `Authorization: Bearer <токен>` и
+     `Accept: application/vnd.github+json`, тело `{"ref":"main"}`;
+   - Notifications → уведомлять о сбоях.
+
+   **Test run** должен вернуть код 204.
 
 **Если что-то сломалось.** Если сайт или Telegram недоступны, запуск завершается с ошибкой,
 и GitHub присылает письмо на почту аккаунта. Подробности — в логе запуска на вкладке Actions.
-
-**Через 60 дней.** В публичном репозитории GitHub отключает расписание, если в репозитории
-60 дней не было коммитов. Перед этим он присылает письмо; включить обратно можно кнопкой
-**Enable workflow** на вкладке Actions или любым коммитом.
+Если запуски вообще перестали появляться — смотрите историю задания на cron-job.org:
+чаще всего это истёк срок токена (код 401). Создайте новый токен и замените его в задании.
 
 ## Команды бота
 

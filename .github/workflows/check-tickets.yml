@@ -1,10 +1,10 @@
 name: Проверка билетов
 
 on:
-  schedule:
-    # Каждые 5 минут (минимум для GitHub). Время UTC; запуски могут опаздывать.
-    - cron: "*/5 * * * *"
-  workflow_dispatch: # кнопка «Run workflow» для ручного запуска
+  # Запускается внешним планировщиком (cron-job.org) через API раз в 5 минут
+  # или вручную кнопкой «Run workflow». Встроенное расписание GitHub не используем:
+  # оно срабатывает раз в несколько часов, а через 60 дней без коммитов отключает workflow.
+  workflow_dispatch:
 
 # Не запускаем две проверки одновременно, чтобы они не перезаписывали состояние друг друга
 concurrency:
@@ -16,9 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -28,7 +28,7 @@ jobs:
       # state.json хранится в кэше Actions между запусками: каждый запуск
       # восстанавливает самую свежую копию и сохраняет новую под своим ключом
       - name: Восстановить состояние
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: state.json
           key: bot-state-${{ github.run_id }}
@@ -46,7 +46,7 @@ jobs:
 
       - name: Сохранить состояние
         if: always() && hashFiles('state.json') != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: state.json
           key: bot-state-${{ github.run_id }}
